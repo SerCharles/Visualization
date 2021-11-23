@@ -11,26 +11,29 @@ class MYPCA(object):
         self.data = np.load(os.path.join(data_dir, 'sampled_image.npy')) #self.N * 28 * 28
         self.labels = np.load(os.path.join(data_dir, 'sampled_label.npy')).astype(np.int32) #self.N
         self.N = self.data.shape[0]
-        self.data = self.data.reshape(self.N, -1).T #784 * 1000
-        self.size = np.array([800, 800], dtype=np.int32)
+        self.size = np.array([1280, 960], dtype=np.int32)
+        self.colors = ['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple', 'black', 'grey', 'darkgreen']
+
         
     def get_result_sklearn(self):
         """The sklearn PCA
         """
+        self.input = self.data.reshape(self.N, -1) #self.N * 784
         pca = PCA(n_components=2)
-        self.result = pca.fit_transform(self.data.T).T
+        self.result = pca.fit_transform(self.input).T #2 * self.N
         
     def get_result(self):
         """The main function of PCA
         """
-        mean = np.mean(self.data, axis=1, keepdims=True).repeat(self.N, axis=1)
-        self.data = self.data - mean
-        self.covariance = np.matmul(self.data, self.data.T) / self.N
+        self.input = self.data.reshape(self.N, -1).T #784 * self.N
+        mean = np.mean(self.input, axis=1, keepdims=True).repeat(self.N, axis=1) #784 * self.N
+        self.input = self.input - mean #784 * self.N
+        self.covariance = np.matmul(self.input, self.input.T) / self.N #784 * 784
         U, sigma, VT = np.linalg.svd(self.covariance)
         p1 = U[:, 0]
         p2 = U[:, 1]
         P = U[:, 0:2].T #2 * 784
-        self.result = np.matmul(P, self.data) #2 * self.N
+        self.result = np.matmul(P, self.input) #2 * self.N
         
 
         
@@ -42,19 +45,17 @@ class MYPCA(object):
         dist_result = max_result - min_result #2
         min_result = min_result.reshape(2, 1).repeat(self.N, axis=1)
         dist_result = dist_result.reshape(2, 1).repeat(self.N, axis=1)
-        self.result = (self.result - min_result) / dist_result #2 * self.N
+        self.show_result = (self.result - min_result) / dist_result #2 * self.N
         size = self.size.reshape(2, 1).repeat(self.N, axis=1)
-        self.result = (self.result * size).astype(np.int32).T #self.N * 2 
+        self.show_result = (self.show_result * size).astype(np.int32).T #self.N * 2 
 
     def visualize(self):
         """Visualize the data
         """
-
-        colors = ['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple', 'black', 'grey', 'darkgreen']
         for i in range(10):
-            color = colors[i]
+            color = self.colors[i]
             mask = (self.labels == i)
-            points = self.result[mask]
+            points = self.show_result[mask]
             plt.scatter(points[:, 0], points[:, 1], label=str(i), color=color)
             plt.legend()
         plt.show()
@@ -64,15 +65,11 @@ class MYPCA(object):
         """
         self.get_result()
         self.normalize()
-        #self.visualize()
         
-
-
-        
-        
-    
-a = MYPCA()
-a.run()
+if __name__ == '__main__':
+    a = MYPCA()
+    a.run()
+    a.visualize()
 
 
 
