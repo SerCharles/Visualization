@@ -21,7 +21,7 @@ class MYPCA(object):
         self.input = self.data.reshape(self.N, -1) #self.N * 784
         pca = PCA(n_components=2)
         self.result = pca.fit_transform(self.input).T #2 * self.N
-        
+
     def get_result(self):
         """The main function of PCA
         """
@@ -30,8 +30,6 @@ class MYPCA(object):
         self.input = self.input - mean #784 * self.N
         self.covariance = np.matmul(self.input, self.input.T) / self.N #784 * 784
         U, sigma, VT = np.linalg.svd(self.covariance)
-        p1 = U[:, 0]
-        p2 = U[:, 1]
         P = U[:, 0:2].T #2 * 784
         self.result = np.matmul(P, self.input) #2 * self.N
         

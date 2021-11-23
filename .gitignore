@@ -9,7 +9,7 @@ __pycache__/
 result/
 visualize/
 src/runs
-
+*.npy
 # Distribution / packaging
 .Python
 build/
