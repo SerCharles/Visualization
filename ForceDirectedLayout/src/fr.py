@@ -3,6 +3,7 @@ import csv
 import time
 from math import *
 import numpy as np 
+import collections
 
     
 
@@ -18,8 +19,10 @@ class FruchtermanReingold(object):
         self.max_iters = 1000
         self.size = [1280, 960]
         self.threshold_repulsive = 50.0
-        self.total_num = 500
+        self.total_num = 100
         self.name_list = []
+        self.paper_list = []
+        self.coauthor_list = []
         self.link_list = []
         self.nodes = 0
         self.links = 0
@@ -32,6 +35,7 @@ class FruchtermanReingold(object):
         csvfile_2 = open(data_place_2, 'r', encoding="utf-8-sig")
         data_reader_2 = csv.reader(csvfile_2)
         current_num = 0
+        papers = []
         author_arrays = []
         node_hash = {}
 
@@ -51,6 +55,7 @@ class FruchtermanReingold(object):
                 else:
                     nodes.append(node_hash[author])
             author_arrays.append(nodes)
+            papers.append(row[1])
             current_num += 1
         
         for row in data_reader_2:
@@ -68,6 +73,7 @@ class FruchtermanReingold(object):
                 else:
                     nodes.append(node_hash[author])
             author_arrays.append(nodes)
+            papers.append(row[1])
             current_num += 1
         
         #init links
@@ -84,6 +90,35 @@ class FruchtermanReingold(object):
                     self.link_list.append([coauthors[i], coauthors[j]])
                     self.links += 1
                     
+        #init coauthor and paper
+        for i in range(self.nodes):
+            self.paper_list.append([])
+            self.coauthor_list.append({})
+            
+        for i in range(len(papers)):
+            authors = author_arrays[i]
+            title = papers[i]
+            for j in range(len(authors)):
+                self.paper_list[authors[j]].append(title)
+    
+            for j in range(len(authors) - 1):
+                for k in range(j + 1, len(authors)):
+                    if authors[k] in self.coauthor_list[authors[j]].keys():
+                        self.coauthor_list[authors[j]][authors[k]] += 1
+                    else:
+                        self.coauthor_list[authors[j]][authors[k]] = 1
+                        
+                    if authors[j] in self.coauthor_list[authors[k]].keys():
+                        self.coauthor_list[authors[k]][authors[j]] += 1
+                    else:
+                        self.coauthor_list[authors[k]][authors[j]] = 1
+                    
+        self.sorted_coauthor_list = []
+        for i in range(self.nodes):
+            sorted_dict = sorted(self.coauthor_list[i].items(), key=lambda obj: obj[1], reverse=True)
+            self.sorted_coauthor_list.append(collections.OrderedDict(sorted_dict))
+
+        
         print(self.nodes, self.links)
         self.set_initial_place()
             

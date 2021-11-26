@@ -15,6 +15,33 @@ class Interaction(object):
         self.fr = FruchtermanReingold()
         self.radius = 4.0
         
+        
+    def mouse_callback(self, event): 
+        """The callback function of mouse interaction
+
+        Args:
+            event [tkinter event]: [the mouse click event]
+        """
+        click_place = np.array([event.x - self.radius, event.y - self.radius]).reshape(1, 2).repeat(self.fr.nodes, axis=0) #N * 2
+        distance = np.sqrt(np.sum((self.fr.position - click_place) ** 2, axis=1)) #N
+        min_distance = np.min(distance)
+        click_id = int(np.argmin(distance))
+
+        if(min_distance <= self.radius):
+            name = self.fr.name_list[click_id]
+            show_text = 'The name of the selected authors: {}\n'.format(name)
+            papers = self.fr.paper_list[click_id]
+            show_text += 'His/Her {} publications:\n'.format(len(papers))
+            for i in range(len(papers)):
+                show_text += (papers[i] + '\n')
+            coauthors = self.fr.sorted_coauthor_list[click_id]
+            show_text += 'His/Her coauthors, sorted by coauthor times:\n'
+            for index, times in coauthors.items():
+                name = self.fr.name_list[index]
+                show_text += name + ', coauthored {} times.\n'.format(times)
+            
+            tkinter.messagebox.showinfo('The information of the selected author', show_text)
+
 
     def run(self):
         """The main function of the interaction program
@@ -22,6 +49,7 @@ class Interaction(object):
         app = Tk()
         app.title('Fruchterman-Reingold visualization')
         cv = Canvas(app, bg='white', width=self.fr.size[0] + 2 * self.radius, height=self.fr.size[1] + 2 * self.radius)
+        cv.bind("<Button-1>", self.mouse_callback)
         cv.pack()
         
         for i in range(self.fr.max_iters):
