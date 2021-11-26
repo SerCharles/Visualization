@@ -1,5 +1,6 @@
 import os 
 import csv
+import time
 from math import *
 import numpy as np 
 
@@ -8,62 +9,21 @@ import numpy as np
 class FruchtermanReingold(object):
     """The Fruchterman-Reingold algorithm
     """
-    
-    class Node(object):
-        """One node
-        """
-        def __init__(self, name, size):
-            """Initialize the node
-
-            Args:
-                name [string]: [the person name represented by the node]
-                size [array]: [the width and height of the screen]
-            """
-            self.name = name 
-            self.size = size
-            self.x = 0.0
-            self.y = 0.0
-            self.dx = 0.0
-            self.dy = 0.0
-            
-        def update_place(self, t):
-            """Update the place 
-
-            Args:
-                t [float]: [the learning rate]
-            """
-            dx = self.dx - self.x 
-            dy = self.dy - self.y
-            dist = sqrt(dx ** 2 + dy ** 2)
-            dx = dx / dist * min(dist, t)
-            dy = dy / dist * min(dist, t)
-            
-            self.x += dx
-            self.y += dy
-            if self.x < 0.0:
-                self.x = 0.0
-            if self.x > self.size[0] - 1:
-                self.x = float(self.size[0] - 1)
-            if self.y < 0.0:
-                self.y = 0.0
-            if self.y > self.size[1] - 1:
-                self.y = float(self.size[1] - 1)
-            self.dx = 0.0 
-            self.dy = 0.0
-    
+        
     def __init__(self):
         """Load the data and initialize the map
         """
+        #init basic
+        self.iter = 0
+        self.max_iters = 1000
         self.size = [1280, 960]
-        self.node_list = []
+        self.threshold_repulsive = 50.0
+        self.total_num = 500
+        self.name_list = []
         self.link_list = []
         self.nodes = 0
         self.links = 0
-        self.total_num = 100
-        self.q = 0.0
-        self.k = 30
-        node_hash = {}
-        
+        self.t = 1.0
         data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
         data_place_1 = os.path.join(data_dir, 'scopus_visual_analytics_part1.csv')
         data_place_2 = os.path.join(data_dir, 'scopus_visual_analytics_part2.csv')
@@ -72,23 +32,25 @@ class FruchtermanReingold(object):
         csvfile_2 = open(data_place_2, 'r', encoding="utf-8-sig")
         data_reader_2 = csv.reader(csvfile_2)
         current_num = 0
-        
+        author_arrays = []
+        node_hash = {}
+
+        #init points
         for row in data_reader_1:
             if self.total_num >= 0 and current_num >= self.total_num:
                 break
             authors = row[0].split(',')
             nodes = []
             for author in authors:
-                if author in node_hash.keys():
-                    node = self.node_list[node_hash[author]]
-                    nodes.append(node)
+                if author == 'Authors' or author == '[No author name available]':
+                    continue
+                if not author in node_hash.keys():
+                    self.name_list.append(author)
+                    node_hash[author] = len(self.name_list) - 1
+                    nodes.append(len(self.name_list) - 1)
                 else:
-                    node = self.Node(author, self.size)
-                    self.node_list.append(node)
-                    node_hash[author] = len(self.node_list) - 1
-            for i in range(len(nodes) - 1):
-                for j in range(i + 1, len(nodes)):
-                    self.link_list.append((nodes[i], nodes[j]))
+                    nodes.append(node_hash[author])
+            author_arrays.append(nodes)
             current_num += 1
         
         for row in data_reader_2:
@@ -97,64 +59,102 @@ class FruchtermanReingold(object):
             authors = row[0].split(',')
             nodes = []
             for author in authors:
-                if author in node_hash.keys():
-                    node = self.node_list[node_hash[author]]
-                    nodes.append(node)
+                if author == 'Authors' or author == '[No author name available]':
+                    continue
+                if not author in node_hash.keys():
+                    self.name_list.append(author)
+                    node_hash[author] = len(self.name_list) - 1
+                    nodes.append(len(self.name_list) - 1)
                 else:
-                    node = self.Node(author, self.size)
-                    self.node_list.append(node)
-                    node_hash[author] = len(self.node_list) - 1
-            for i in range(len(nodes) - 1):
-                for j in range(i + 1, len(nodes)):
-                    self.link_list.append((nodes[i], nodes[j]))
+                    nodes.append(node_hash[author])
+            author_arrays.append(nodes)
             current_num += 1
         
-        
-        self.nodes = len(self.node_list)
-        self.links = len(self.link_list)
-        self.q = sqrt(self.size[0] * self.size[1] / self.nodes)
+        #init links
+        self.nodes = len(self.name_list)
+        self.k = sqrt(self.size[0] * self.size[1] / self.nodes)
+        self.adjacency = np.zeros((self.nodes, self.nodes), dtype=np.int32)
+        self.position = np.zeros((self.nodes, 2), dtype=np.float64)
+        self.move = np.zeros((self.nodes, 2), dtype=np.float64)
+        for coauthors in author_arrays:
+            for i in range(len(coauthors) - 1):
+                for j in range(i + 1, len(coauthors)):
+                    self.adjacency[coauthors[i], coauthors[j]] += 1 
+                    self.adjacency[coauthors[j], coauthors[i]] += 1 
+                    self.link_list.append([coauthors[i], coauthors[j]])
+                    self.links += 1
+                    
+        print(self.nodes, self.links)
+        self.set_initial_place()
             
     def set_initial_place(self):
         """Set the initial places of the nodes
         """
-        item_per_dim = ceil(sqrt(self.nodes))
-        dist_x = self.x / item_per_dim
-        dist_y = self.y / item_per_dim
-        for i in range(self.nodes):
-            ix = i // item_per_dim
-            iy = i % item_per_dim
-            self.node_list[i].x = dist_x * ix 
-            self.link_list[i].y = dist_y * iy 
-            self.node_list[i].dx = 0.0
-            self.node_list[i].dy = 0.0 
+        item_per_dim = ceil(sqrt(self.nodes)) + 1
+        dist_x = self.size[0] / item_per_dim
+        dist_y = self.size[1] / item_per_dim
+        index = np.arange(0, self.nodes)
+        ix = index // item_per_dim + 1
+        iy = index % item_per_dim + 1
+        self.position[:, 0] = ix * dist_x
+        self.position[:, 1] = iy * dist_y
     
-    def get_repulsive_force(self):
-        """Get the repulsive forces between links
+    def get_distance_matrix(self):
+        """Get the distance matrix between the nodes
         """
-        for i in range(self.nodes - 1):
-            for j in range(i + 1, self.nodes):
-                dx = self.node_list[i].x - self.node_list[j].x
-                dy = self.node_list[i].y - self.node_list[j].y
-                d = sqrt(dx ** 2 + dy ** 2)
-                dx = dx / d
-                dy = dy / d
-                self.node_list[i].dx += self.k * self.k / d  * dx 
-                self.node_list[i].dy += self.k * self.k / d  * dy
+        self.dist_x = []
+        self.dist_y = []
+        self.dist = []
+        for i in range(self.nodes):
+            x = self.position[i, 0]
+            y = self.position[i, 1]
+            dist_x = -(self.position[:, 0] - x) #N * 1
+            dist_y = -(self.position[:, 1] - y) #N * 1
+            dist = np.sqrt(dist_x ** 2 + dist_y ** 2) #N * 1
+            dist[i] = 1.0
+            dist_x = dist_x / dist #N * 1
+            dist_y = dist_y / dist #N * 1
+            dist[i] = 0.0 
+            self.dist_x.append(dist_x.reshape(1, self.nodes)) #1 * N
+            self.dist_y.append(dist_y.reshape(1, self.nodes)) #1 * N
+            self.dist.append(dist.reshape(1, self.nodes)) #1 * N
+        
+        self.dist_x = np.concatenate(self.dist_x, axis=0) #N * N
+        self.dist_y = np.concatenate(self.dist_y, axis=0) #N * N
+        self.dist = np.concatenate(self.dist, axis=0) #N * N
+
+    def get_repulsive_force(self):
+        """Get the repulsive forces between nodes
+        """
+        self.repulsive = []
+        mask = self.dist <= self.threshold_repulsive 
+        dist_x = self.dist_x * mask 
+        dist_y = self.dist_y * mask 
+        
+        for i in range(self.nodes):
+            self.dist[i, i] = 1.0 #avoid / 0
+            repulsive_x = np.sum(dist_x[i] / self.dist[i] * self.k * self.k)
+            repulsive_y = np.sum(dist_y[i] / self.dist[i] * self.k * self.k)
+            repulsive = np.array([repulsive_x, repulsive_y], dtype=np.float32).reshape(1, 2)
+            self.dist[i, i] = 0.0
+            self.repulsive.append(repulsive)
+        self.repulsive = np.concatenate(self.repulsive, axis=0) #N * 2
+
 
     def get_attractive_force(self):
-        """Get the attractive forces between links
+        """Get the attractive forces between nodes that have links
         """
-        for link in range(self.links):
-            left, right = link 
-            dx = left.x - right.x 
-            dy = left.y - right.y 
-            d = sqrt(dx ** 2 + dy ** 2)
-            move_x = d * d / self.k * dx 
-            move_y = d * d / self.k * dy
-            self.right.dx += move_x
-            self.right.dy += move_y
-            self.left.dx -= move_x 
-            self.left_dy -= move_y
+        self.attractive = []
+        mask = self.adjacency
+        dist_x = self.dist_x * mask 
+        dist_y = self.dist_y * mask         
+        
+        for i in range(self.nodes):
+            attractive_x = np.sum(-dist_x[i] * self.dist[i] * self.dist[i] / self.k)
+            attractive_y = np.sum(-dist_y[i] * self.dist[i] * self.dist[i] / self.k)
+            attractive = np.array([attractive_x, attractive_y], dtype=np.float32).reshape(1, 2)
+            self.attractive.append(attractive)
+        self.attractive = np.concatenate(self.attractive, axis=0) #N * 2
             
     def update_place(self, t):
         """Update the places of the nodes
@@ -162,25 +162,27 @@ class FruchtermanReingold(object):
         Args:
             t [float]: [the learning rate]
         """
-        for node in self.node_list:
-            node.update_place(t)
+        delta = self.attractive + self.repulsive #N * 2
+        delta_length = np.sqrt(np.sum(delta ** 2, axis=1)) #N
+        mask = (delta_length < t)
+        learning_rate = (mask * delta_length + (~mask) * t).reshape(self.nodes, 1).repeat(2, axis=1)
+        length = delta_length.reshape(self.nodes, 1).repeat(2, axis=1)
+        length = length + (delta <= 0)
+        move = delta / length * learning_rate #N * 2
+        #print(np.sqrt(np.sum(move[:, 0] ** 2)))
+        self.position = self.position + move
+
 
         
-           
-        
-    def run(self):
+    def run_one_iter(self):
         """The main function of Fruchterman-Reingold algorithm
         """
-        self.set_initial_place()
-        t = 1.0
-        for i in range(100):
-            self.get_repulsive_force()
-            self.get_attractive_force()
-            self.update_place(t)
-            t = t - t / (i + 1)
-            
+        start = time.time()
+        t = 1.0 - (self.iter / self.max_iters)
+        self.get_distance_matrix()
+        self.get_repulsive_force()
+        self.get_attractive_force()
+        self.update_place(t)
+        end = time.time()
+        #print('Iteration: {}, Total time: {:.4f}s'.format(self.iter + 1, end - start))                
                 
-                
-                
-a = FruchtermanReingold()
-a.run()
