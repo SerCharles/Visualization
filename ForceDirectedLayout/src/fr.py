@@ -117,9 +117,7 @@ class FruchtermanReingold(object):
         for i in range(self.nodes):
             sorted_dict = sorted(self.coauthor_list[i].items(), key=lambda obj: obj[1], reverse=True)
             self.sorted_coauthor_list.append(collections.OrderedDict(sorted_dict))
-
         
-        print(self.nodes, self.links)
         self.set_initial_place()
             
     def set_initial_place(self):
@@ -209,11 +207,9 @@ class FruchtermanReingold(object):
     def run_one_iter(self):
         """The main function of Fruchterman-Reingold algorithm
         """
-        start = time.time()
         self.get_distance_matrix()
         self.get_repulsive_force()
         self.get_attractive_force()
         self.update_place()
         end = time.time()
-        print('Iteration: {}, Total time: {:.4f}s'.format(self.iter + 1, end - start))                
-        self.iter += 1
+
