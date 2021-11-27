@@ -11,15 +11,15 @@ class FruchtermanReingold(object):
     """The Fruchterman-Reingold algorithm
     """
         
-    def __init__(self):
+    def __init__(self, numbers):
         """Load the data and initialize the map
         """
         #init basic
         self.iter = 0
-        self.max_iters = 1000
+        self.max_iters = 10000
         self.size = [1280, 960]
         self.threshold_repulsive = 50.0
-        self.total_num = 100
+        self.total_num = numbers
         self.name_list = []
         self.paper_list = []
         self.coauthor_list = []
@@ -191,12 +191,10 @@ class FruchtermanReingold(object):
             self.attractive.append(attractive)
         self.attractive = np.concatenate(self.attractive, axis=0) #N * 2
             
-    def update_place(self, t):
+    def update_place(self):
         """Update the places of the nodes
-
-        Args:
-            t [float]: [the learning rate]
         """
+        t = 1.0 - (self.iter / self.max_iters)
         delta = self.attractive + self.repulsive #N * 2
         delta_length = np.sqrt(np.sum(delta ** 2, axis=1)) #N
         mask = (delta_length < t)
@@ -204,7 +202,6 @@ class FruchtermanReingold(object):
         length = delta_length.reshape(self.nodes, 1).repeat(2, axis=1)
         length = length + (delta <= 0)
         move = delta / length * learning_rate #N * 2
-        #print(np.sqrt(np.sum(move[:, 0] ** 2)))
         self.position = self.position + move
 
 
@@ -213,11 +210,10 @@ class FruchtermanReingold(object):
         """The main function of Fruchterman-Reingold algorithm
         """
         start = time.time()
-        t = 1.0 - (self.iter / self.max_iters)
         self.get_distance_matrix()
         self.get_repulsive_force()
         self.get_attractive_force()
-        self.update_place(t)
+        self.update_place()
         end = time.time()
-        #print('Iteration: {}, Total time: {:.4f}s'.format(self.iter + 1, end - start))                
-                
+        print('Iteration: {}, Total time: {:.4f}s'.format(self.iter + 1, end - start))                
+        self.iter += 1
